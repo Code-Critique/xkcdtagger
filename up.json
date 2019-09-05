@@ -1,0 +1,22 @@
+{
+  "name": "xkcdtagger",
+  "profile": "default",
+  "regions": [
+    "us-west-2"
+  ],
+  "hooks":{
+    "build": "GOOS=linux GOARCH=amd64 go build -o server cmd/server/main.go"
+  },
+  "environment": {
+    "REDIS_HOST": "localhost",
+    "REDIS_PASSWORD": "",
+    "REDIS_PORT": "6379"
+  },
+  "stages": {
+    "development": {
+      "proxy": {
+        "command": "gin --port $PORT --build cmd/server"
+      }
+    }
+  }
+}
