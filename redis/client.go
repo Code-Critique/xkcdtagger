@@ -132,8 +132,6 @@ func (c *Client) ListTags() ([]xkcdtagger.Tag, error) {
 func (c *Client) GetTagByTitle(title string) (*xkcdtagger.Tag, error) {
 	t, err := c.HGet("tags", title).Result()
 
-	log.Println("tag")
-
 	if err != nil {
 		// If not found, can use other redis statements
 		if err.Error() == "redis: nil" {
@@ -163,8 +161,6 @@ func (c *Client) AddTags(tags []xkcdtagger.Tag) error {
 		if err != nil {
 			return err
 		}
-
-		log.Println("tag", existingTag)
 
 		if existingTag != nil {
 			temp := *existingTag
@@ -211,22 +207,86 @@ func (c *Client) AddTags(tags []xkcdtagger.Tag) error {
 	return nil
 }
 
+func (c *Client) comicExists(id xkcdtagger.ComicID) (*xkcdtagger.Comic, error) {
+	sid := strconv.Itoa(int(id))
+
+	comic, err := c.HGet("comics", sid).Result()
+
+	if err != nil {
+		// If not found, can use other redis statements
+		if err.Error() == "redis: nil" {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	var outComic xkcdtagger.Comic
+
+	err = json.Unmarshal([]byte(comic), &outComic)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &outComic, nil
+}
+
 // AddComic adds comic into redis
 func (c *Client) AddComic(comic xkcdtagger.Comic) error {
-	sid := strconv.Itoa(int(comic.ID))
-
-	json, err := json.Marshal(comic)
+	oComic, err := c.comicExists(comic.ID)
 
 	if err != nil {
 		return err
 	}
 
-	bc := c.HSet("comics", sid, json)
+	sid := strconv.Itoa(int(comic.ID))
 
-	_, err = bc.Result()
+	if oComic == nil {
 
-	if err != nil {
-		return err
+		json, err := json.Marshal(comic)
+
+		if err != nil {
+			return err
+		}
+
+		bc := c.HSet("comics", sid, json)
+
+		_, err = bc.Result()
+
+		if err != nil {
+			return err
+		}
+	} else {
+		set := make(map[string]bool)
+
+		for _, t := range oComic.Tags {
+			set[t] = true
+		}
+
+		for _, t := range comic.Tags {
+			set[t] = true
+		}
+
+		keys := make([]string, 0, len(set))
+		for k := range set {
+			keys = append(keys, k)
+		}
+
+		outComic := *oComic
+		outComic.Tags = keys
+
+		json, err := json.Marshal(outComic)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = c.HSet("comics", sid, json).Result()
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
