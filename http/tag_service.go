@@ -1,6 +1,8 @@
 package http
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -23,13 +25,40 @@ func NewTagHandler() *TagHandler {
 		Router: mux.NewRouter(),
 	}
 
-	th.Router.HandleFunc("/tags", th.tagHandler)
+	th.Router.HandleFunc("/tags", th.tagHandler).Methods("POST", "GET")
 
 	return th
 }
 
 func (th *TagHandler) tagHandler(w http.ResponseWriter, r *http.Request) {
-	t, err := th.StorageService.GetTags()
+	if r.Method == http.MethodPost {
+
+		b, err := ioutil.ReadAll(r.Body)
+		defer r.Body.Close()
+
+		if err != nil {
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		var t xkcdtagger.Tag
+		err = json.Unmarshal(b, &t)
+
+		log.Println("post", t)
+
+		temp := []xkcdtagger.Tag{t}
+
+		err = th.StorageService.AddTags(temp)
+
+		if err != nil {
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		return
+	}
+
+	t, err := th.StorageService.ListTags()
 
 	if err != nil {
 		w.Write([]byte(err.Error()))

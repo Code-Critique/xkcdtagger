@@ -1,6 +1,8 @@
 package http
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -50,6 +52,36 @@ func (ch *ComicHandler) comicHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.Write([]byte(err.Error()))
+	}
+
+	if r.Method == http.MethodPost {
+		b, err := ioutil.ReadAll(r.Body)
+		defer r.Body.Close()
+
+		if err != nil {
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		var c xkcdtagger.Comic
+
+		err = json.Unmarshal(b, &c)
+
+		if err != nil {
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		c.ID = xkcdtagger.ComicID(i)
+
+		err = ch.StorageService.AddComic(c)
+
+		if err != nil {
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		return
 	}
 
 	c, err := ch.StorageService.GetComic(xkcdtagger.ComicID(i))

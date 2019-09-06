@@ -79,7 +79,7 @@ func (c *Client) GetComic(id xkcdtagger.ComicID) (*xkcdtagger.Comic, error) {
 }
 
 // GetTagsForComic gets tags for comic
-func (c *Client) GetTagsForComic(id xkcdtagger.ComicID) ([]xkcdtagger.Tag, error) {
+func (c *Client) GetTagsForComic(id xkcdtagger.ComicID) ([]string, error) {
 	key := strconv.Itoa(int(id))
 
 	sc := c.HGet("comics", key)
@@ -101,11 +101,11 @@ func (c *Client) GetTagsForComic(id xkcdtagger.ComicID) ([]xkcdtagger.Tag, error
 	return item.Tags, nil
 }
 
-// GetTags gets all tags
-func (c *Client) GetTags() ([]xkcdtagger.Tag, error) {
-	sc := c.SMembers("tags")
+// ListTags list all tags
+func (c *Client) ListTags() ([]xkcdtagger.Tag, error) {
+	strings, err := c.HVals("tags").Result()
 
-	strings, err := sc.Result()
+	log.Println(strings, err)
 
 	if err != nil {
 		return nil, err
@@ -126,4 +126,108 @@ func (c *Client) GetTags() ([]xkcdtagger.Tag, error) {
 	}
 
 	return out, nil
+}
+
+// GetTagByTitle gets a tag by tag title
+func (c *Client) GetTagByTitle(title string) (*xkcdtagger.Tag, error) {
+	t, err := c.HGet("tags", title).Result()
+
+	log.Println("tag")
+
+	if err != nil {
+		// If not found, can use other redis statements
+		if err.Error() == "redis: nil" {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	var tag xkcdtagger.Tag
+
+	err = json.Unmarshal([]byte(t), &tag)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &tag, nil
+}
+
+// AddTags adds tags into redis
+func (c *Client) AddTags(tags []xkcdtagger.Tag) error {
+
+	for _, t := range tags {
+		existingTag, err := c.GetTagByTitle(t.Title)
+
+		if err != nil {
+			return err
+		}
+
+		log.Println("tag", existingTag)
+
+		if existingTag != nil {
+			temp := *existingTag
+
+			set := make(map[int]bool)
+
+			for _, cid := range temp.ComicID {
+				set[int(cid)] = true
+			}
+
+			keys := make([]xkcdtagger.ComicID, 0, len(set))
+			for k := range set {
+				keys = append(keys, xkcdtagger.ComicID(k))
+			}
+
+			temp.ComicID = keys
+
+			json, err := json.Marshal(temp)
+
+			if err != nil {
+				return err
+			}
+
+			_, err = c.HSet("tags", t.Title, json).Result()
+
+			if err != nil {
+				return err
+			}
+		} else {
+			json, err := json.Marshal(t)
+
+			if err != nil {
+				return err
+			}
+
+			_, err = c.HSet("tags", t.Title, json).Result()
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// AddComic adds comic into redis
+func (c *Client) AddComic(comic xkcdtagger.Comic) error {
+	sid := strconv.Itoa(int(comic.ID))
+
+	json, err := json.Marshal(comic)
+
+	if err != nil {
+		return err
+	}
+
+	bc := c.HSet("comics", sid, json)
+
+	_, err = bc.Result()
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

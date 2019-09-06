@@ -42,7 +42,19 @@ func main() {
 	wg.Wait()
 }
 
-// POST comics/:id {comic-number: int, tag: [string]}
+// Tag
+// {
+// 	"id": int,
+// 	"name": string
+// }
+
+// Comic
+// {
+// 	"id": int,
+// 	"tag": [Tag]
+// }
+
+// POST comics/:id  ex: {id: int, tag: [string]}
 // GET comics/:id/tags
 // GET comics
 // GET tags
