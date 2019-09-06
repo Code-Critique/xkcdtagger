@@ -81,6 +81,23 @@ func (ch *ComicHandler) comicHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		var tags []xkcdtagger.Tag
+		for _, t := range c.Tags {
+			ids := []xkcdtagger.ComicID{c.ID}
+			tag := xkcdtagger.Tag{
+				Title:   t,
+				ComicID: ids,
+			}
+			tags = append(tags, tag)
+		}
+
+		err = ch.StorageService.AddTags(tags)
+
+		if err != nil {
+			w.Write([]byte(err.Error()))
+			return
+		}
+
 		return
 	}
 
